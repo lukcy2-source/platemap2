@@ -3,56 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地殼留言板 (自定義地圖版)</title>
+    <title>全球板塊留言板 - 精密校準版</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
-        #map { height: 100vh; width: 100%; background: white; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background-color: #f0f2f5; }
+        #map { height: 100vh; width: 100%; background: #ffffff; }
         
         .header-box {
             position: absolute;
-            top: 10px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
             background: rgba(255, 255, 255, 0.95);
-            padding: 10px 25px;
-            border-radius: 12px;
+            padding: 10px 30px;
+            border-radius: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             text-align: center;
-            min-width: 300px;
+            border: 1px solid #dcdfe6;
         }
-        
-        /* 彈窗內評論區樣式 */
+
         .comment-section {
             max-height: 200px;
             overflow-y: auto;
-            border-top: 1px solid #eee;
+            border-top: 1px solid #ebeef5;
             margin-top: 10px;
-            padding-top: 10px;
+            padding: 8px;
+            background: #fafafa;
         }
-        .comment-item { margin-bottom: 8px; font-size: 0.9em; }
-        .comment-item strong { color: #d35400; }
-        .add-comment-btn {
-            background-color: #2c3e50;
+        .comment-item { 
+            margin-bottom: 8px; 
+            padding-bottom: 8px; 
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        .comment-item strong { color: #409eff; }
+        .add-btn {
+            background: #67c23a;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 10px;
+            width: 100%;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 10px;
-            width: 100%;
+            font-weight: bold;
+            margin-top: 8px;
+            transition: 0.3s;
         }
-        .add-comment-btn:hover { background-color: #34495e; }
+        .add-btn:hover { background: #85ce61; }
     </style>
 </head>
 <body>
 
 <div class="header-box">
-    <h2 style="margin:0; color:#2c3e50;">🌍 地殼留言板</h2>
-    <p style="margin:5px 0 0; font-size: 0.9em; color:#7f8c8d;">點擊固定地點，查看並留下你的地質評論！</p>
+    <h2 style="margin:0; color:#303133;">🌍 全球板塊地質互動地圖</h2>
+    <span style="font-size: 12px; color:#909399;">點擊座標點進行評論，數據將即時同步全班</span>
 </div>
 
 <div id="map"></div>
@@ -62,124 +69,114 @@
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
-    // --- 1. Firebase 配置 ---
+    // --- 1. Firebase 配置 (已校正為新加坡地區 URL) ---
     const firebaseConfig = {
-  apiKey: "AIzaSyCkEXDJ_vqlzq3fJbpQkfOPO1v463zPO58",
-  authDomain: "platemap2-b7c66.firebaseapp.com",
-  databaseURL: "https://platemap2-b7c66-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "platemap2-b7c66",
-  storageBucket: "platemap2-b7c66.firebasestorage.app",
-  messagingSenderId: "370123244588",
-  appId: "1:370123244588:web:e19aa2515152fd3169fd89"
-};
-
+        apiKey: "AIzaSyDD3RepU3OyEzhu9OVyEJnXQkqXs9q3hsQ",
+        authDomain: "platemap2-b7c66.firebaseapp.com",
+        databaseURL: "https://platemap2-b7c66-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "platemap2-b7c66",
+        storageBucket: "platemap2-b7c66.appspot.com",
+        messagingSenderId: "618061351875",
+        appId: "1:618061351875:web:cf2ee4e4a19ccd3b7a0b76"
+    };
     
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database().ref('platemap_comments');
+    const db = firebase.database().ref('class_activity');
 
-    // --- 2. 初始化地圖 (使用 CRS.Simple 處理自定義圖片) ---
-    var map = L.map('map', {
-        crs: L.CRS.Simple, // 重要：切換到平面坐標系
+    // --- 2. 初始化自定義地圖底圖 ---
+    const imgW = 1794;
+    const imgH = 1002;
+    const map = L.map('map', {
+        crs: L.CRS.Simple,
         minZoom: -1,
-        maxZoom: 2
+        maxZoom: 2,
+        attributionControl: false
     });
 
-    //// --- 3. 設置自定義圖片底圖 ---
-    var imgW = 1794; 
-    var imgH = 1002;
-    var bounds = [[0, 0], [imgH, imgW]]; 
-    
-    var imageUrl = 'platemap_background.png'; 
+    const bounds = [[0, 0], [imgH, imgW]];
+    const imageUrl = 'platemap_background.png'; 
     L.imageOverlay(imageUrl, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // --- 4. 座標轉換 (精密校準版) ---
+    // --- 3. 精密計算過程 (224.25 px / 45°) ---
     function geoToPixel(lat, lon) {
-        // 經度 lon: -180(西) -> 0, 180(東) -> 1794
-        var x = (lon + 180) * (imgW / 360);
+        // 經度計算：每 45 度為 224.25 px，總寬 1794 (45 * 8 = 360, 224.25 * 8 = 1794)
+        let x = (lon + 180) * (224.25 / 45);
         
-        // 緯度 lat: -90(南) -> 0, 90(北) -> 1002
-        // 注意：在圖片坐標系中，0 是底部，1002 是頂部
-        var y = (lat + 90) * (imgH / 180);
+        // 緯度計算：總高 1002 對應 180 度 (-90 到 90)
+        let y = (lat + 90) * (1002 / 180);
         
-        return [y, x]; 
+        return [y, x];
     }
 
-    // --- 5. 設置 6 個地點 (使用你提供的精確經緯度) ---
+    // --- 4. 教學考察地點數據 ---
     const locations = [
-        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂形成的巨大斷裂帶。' },
-        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '位於美國加州，屬於平移斷層。' },
-        { id: 'Andes', name: '安第斯山脈', lat: -32.65, lon: -70.01, desc: '世界上最長的陸上山脈（近阿空加瓜山）。' },
-        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊上的火山島。' },
-        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印尼人口密集的島嶼，火山活動頻繁。' },
-        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '世界最高山脈（座標近聖母峰）。' }
+        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂造成的巨大斷裂帶，未來可能形成新海洋。' },
+        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '平移邊界典型案例，太平洋板塊與北美洲板塊相互滑動。' },
+        { id: 'Andes', name: '安第斯山脈', lat: -32.65, lon: -70.01, desc: '納斯卡板塊隱沒至南美板塊下方形成的褶皺山脈。' },
+        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊，是少見在地表可見的張裂邊界。' },
+        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印澳板塊與歐亞板塊聚合，火山活動極其頻繁。' },
+        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '兩個大陸板塊相撞，使地殼劇烈抬升成為世界屋脊。' }
     ];
 
-    // 繪製標記
+    // --- 5. 生成標記與留言載入 ---
     locations.forEach(loc => {
-        var pixelCoord = geoToPixel(loc.lat, loc.lon);
-        var marker = L.marker(pixelCoord).addTo(map);
-        
-        // ... (後續的彈窗與 Firebase 評論代碼保持不變) ...    // 為每個地點建立標記和彈窗
-    locations.forEach(loc => {
-        var pixelCoord = geoToPixel(loc.lat, loc.lon);
-        var marker = L.marker(pixelCoord).addTo(map);
-        
-        // 設定彈窗內容架構
-        var popupContent = `
-            <div class="custom-popup" style="width:250px;">
-                <strong style="color:#d35400; font-size:1.1em;">📍 ${loc.name}</strong><br>
-                <small style="color:gray;">(${loc.lat.toFixed(2)}, ${loc.lon.toFixed(2)})</small><br>
-                <b style="margin-top:5px; display:block;">地質描述：</b>${loc.desc}<br>
-                
-                <div class="comment-section" id="comment-section-${loc.id}">
-                    <b>學生評論：</b><br>
-                    <div class="comment-list" id="comment-list-${loc.id}">
-                        </div>
-                </div>
-                
-                <button class="add-comment-btn" onclick="addComment('${loc.id}')">我要評論</button>
-            </div>
-        `;
-        marker.bindPopup(popupContent);
+        const pixelPos = geoToPixel(loc.lat, loc.lon);
+        const marker = L.marker(pixelPos).addTo(map);
 
-        // --- 6. 監聽 Firebase 數據，載入該點評論 ---
-        db.child(loc.id).on('child_added', (snapshot) => {
-            const data = snapshot.val();
-            const commentList = document.getElementById(`comment-list-${loc.id}`);
+        const content = document.createElement('div');
+        content.style.minWidth = "240px";
+        content.innerHTML = `
+            <div style="border-bottom: 2px solid #409eff; padding-bottom:5px; margin-bottom:8px;">
+                <strong style="font-size:16px;">${loc.name}</strong>
+            </div>
+            <p style="font-size:13px; color:#606266; line-height:1.4;">${loc.desc}</p>
+            <div class="comment-section" id="box-${loc.id}">
+                <div id="list-${loc.id}"><small>載入中...</small></div>
+            </div>
+            <button class="add-btn" onclick="postComment('${loc.id}')">我也要留言</button>
+        `;
+
+        marker.bindPopup(content);
+
+        // 監聽 Firebase 分支數據
+        db.child(loc.id).on('value', (snapshot) => {
+            const listContainer = document.getElementById(`list-${loc.id}`);
+            if (!listContainer) return;
             
-            if (commentList) {
-                const commentItem = document.createElement('div');
-                commentItem.className = 'comment-item';
-                commentItem.innerHTML = `
-                    <strong>👤 ${data.user}:</strong> ${data.text}
-                    <div style="font-size:0.8em; color:#bdc3c7;">${data.time}</div>
-                `;
-                commentList.appendChild(commentItem);
-                
-                // 自動滾動到底部
-                var commentSection = document.getElementById(`comment-section-${loc.id}`);
-                commentSection.scrollTop = commentSection.scrollHeight;
+            listContainer.innerHTML = "";
+            const data = snapshot.val();
+            
+            if (data) {
+                Object.values(data).forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'comment-item';
+                    div.innerHTML = `<strong>${item.user}</strong>: ${item.msg}<br><small style="color:#C0C4CC;">${item.time}</small>`;
+                    listContainer.appendChild(div);
+                });
+                // 自動滾動到最新留言
+                const box = document.getElementById(`box-${loc.id}`);
+                box.scrollTop = box.scrollHeight;
+            } else {
+                listContainer.innerHTML = "<center><small style='color:#999;'>暫無評論，歡迎首位發言</small></center>";
             }
         });
     });
 
-    // --- 7. 新增評論功能 (處理按鈕點擊) ---
-    window.addComment = function(locationId) {
-        var user = prompt("請輸入你的名字：");
-        if (!user) return;
-        
-        var text = prompt("請留下你對這裡的觀察或問題：");
-        if (!text) return;
+    // --- 6. 提交評論功能 ---
+    window.postComment = function(locId) {
+        const name = prompt("請輸入你的姓名：");
+        if (!name) return;
+        const comment = prompt("請輸入你的觀察或地質特徵描述：");
+        if (!comment) return;
 
-        // 將評論存入該地點的路徑下
-        db.child(locationId).push({
-            user: user,
-            text: text,
+        db.child(locId).push({
+            user: name,
+            msg: comment,
             time: new Date().toLocaleString()
         });
     };
-</script>
 
+</script>
 </body>
 </html>
