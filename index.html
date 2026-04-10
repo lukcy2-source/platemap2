@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球板塊留言板 - 精確校正版</title>
+    <title>全球板塊留言板 - 手動定位版</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -11,6 +11,7 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background-color: #f0f2f5; }
         #map { height: 100vh; width: 100%; background: #ffffff; }
         
+        /* 頁首標題樣式 */
         .header-box {
             position: absolute;
             top: 20px;
@@ -25,6 +26,7 @@
             border: 1px solid #dcdfe6;
         }
 
+        /* 評論區樣式 */
         .comment-section {
             max-height: 200px;
             overflow-y: auto;
@@ -51,14 +53,13 @@
             font-weight: bold;
             margin-top: 8px;
         }
-        .add-btn:hover { background: #85ce61; }
     </style>
 </head>
 <body>
 
 <div class="header-box">
-    <h2 style="margin:0; color:#303133;">🌍 板塊構造互動地圖 (精密校準)</h2>
-    <span style="font-size: 12px; color:#909399;">本初子午線已校準於 255px 位置</span>
+    <h2 style="margin:0; color:#303133;">🌍 板塊構造互動地圖 (手動校準版)</h2>
+    <span style="font-size: 12px; color:#f56c6c;">提示：按 F12 打開 Console，點擊地圖即可獲取座標</span>
 </div>
 
 <div id="map"></div>
@@ -68,7 +69,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
-    // --- 1. Firebase 配置 ---
+    // --- 【1. Firebase 配置】 ---
     const firebaseConfig = {
         apiKey: "AIzaSyDD3RepU3OyEzhu9OVyEJnXQkqXs9q3hsQ",
         authDomain: "platemap2-b7c66.firebaseapp.com",
@@ -82,10 +83,10 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref('class_activity');
 
-    // --- 2. 初始化地圖與底圖名稱 ---
+    // --- 【2. 底圖設定】 ---
     const imgW = 1794;
     const imgH = 1002;
-    const imageUrl = 'imageUrl'; // 確保檔案名正確
+    const imageUrl = 'imageUrl'; 
 
     const map = L.map('map', {
         crs: L.CRS.Simple,
@@ -98,32 +99,20 @@
     L.imageOverlay(imageUrl, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // --- 3. 核心校準公式 (關鍵修改點) ---
-    function geoToPixel(lat, lon) {
-        // 經度計算：以 255 像素為 0 度起點，每度位移 (224.25 / 45) 像素
-        let x = 255 + (lon * (224.25 / 45));
-        
-        // 緯度計算：假設赤道 (0度) 在圖片高度中央 (501px)
-        // 若赤道位置有偏，可將 501 進行微調
-        let y = 501 + (lat * (1002 / 180));
-        
-        return [y, x];
-    }
-
-    // --- 4. 地點數據 ---
+    // --- 【3. 地點數據：請在此手動更改座標 [Y, X] 】 ---
     const locations = [
-        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂形成的巨大斷裂帶。' },
-        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '平移邊界典型案例，太平洋板塊與北美洲板塊相互滑動。' },
-        { id: 'Andes', name: '安第斯山脈', lat: -32.65, lon: -70.01, desc: '納斯卡板塊隱沒至南美板塊下方形成的褶皺山脈。' },
-        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊上的火山島。' },
-        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印澳板塊與歐亞板塊聚合。' },
-        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '兩個大陸板塊相撞擠壓形成。' }
+        { id: 'EastAfrica', name: '東非大裂谷', pos: [557, 428], desc: '板塊張裂形成的巨大斷裂帶。' },
+        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, pos: [680, 1353], desc: '平移邊界典型案例。' },
+        { id: 'Andes', name: '安第斯山脈', pos: [328, 1595], desc: '聚合型邊界形成的褶皺山脈。' },
+        { id: 'Iceland', name: '冰島', pos: [891, 211], desc: '位於大西洋中洋脊上的火山島。' },
+        { id: 'Java', name: '爪哇島', pos: [390, 745], desc: '印澳板塊與歐亞板塊聚合。' },
+        { id: 'Himalayas', name: '喜馬拉雅山脈', pos: [643, 620], desc: '兩個大陸板塊相撞擠壓形成。' }
     ];
 
-    // --- 5. 生成標記 ---
+    // --- 【4. 標記生成與評論邏輯】 ---
     locations.forEach(loc => {
-        const pixelPos = geoToPixel(loc.lat, loc.lon);
-        const marker = L.marker(pixelPos).addTo(map);
+        // 直接使用手動設定的 pos
+        const marker = L.marker(loc.pos).addTo(map);
 
         const content = document.createElement('div');
         content.style.minWidth = "240px";
@@ -155,19 +144,20 @@
         });
     });
 
-    // --- 6. 互動功能 ---
+    // --- 【5. 評論功能】 ---
     window.postComment = function(locId) {
         const name = prompt("請輸入你的姓名：");
         if (!name) return;
         const comment = prompt("請輸入評論：");
         if (!comment) return;
-
-        db.child(locId).push({
-            user: name,
-            msg: comment,
-            time: new Date().toLocaleString()
-        });
+        db.child(locId).push({ user: name, msg: comment, time: new Date().toLocaleString() });
     };
+
+    // --- 【6. 座標拾取器：手動定位必備工具】 ---
+    map.on('click', function(e) {
+        // 在網頁控制台印出 Y 和 X
+        console.log("當前點擊座標 [Y, X]: [" + e.latlng.lat.toFixed(1) + ", " + e.latlng.lng.toFixed(1) + "]");
+    });
 </script>
 </body>
 </html>
