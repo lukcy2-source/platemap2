@@ -66,6 +66,7 @@
     const firebaseConfig = {
   apiKey: "AIzaSyCkEXDJ_vqlzq3fJbpQkfOPO1v463zPO58",
   authDomain: "platemap2-b7c66.firebaseapp.com",
+  databaseURL: "https://platemap2-b7c66-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "platemap2-b7c66",
   storageBucket: "platemap2-b7c66.firebasestorage.app",
   messagingSenderId: "370123244588",
@@ -89,7 +90,7 @@
     var bounds = [[0, 0], [imgH, imgW]]; // [ [南, 西], [北, 東] ]
     
     // 圖片檔案路徑 (請確保檔案在同一個資料夾，並命名為 platemap_background.png)
-    var imageUrl = 'platemap_background.png'; 
+    var imageUrl = 'imageUrl'; 
     L.imageOverlay(imageUrl, bounds).addTo(map);
     
     // 將地圖中心對準圖片
