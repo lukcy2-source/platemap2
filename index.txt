@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地殼留言板 (自定義地圖版)</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
+        #map { height: 100vh; width: 100%; background: white; }
+        
+        .header-box {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-align: center;
+            min-width: 300px;
+        }
+        
+        /* 彈窗內評論區樣式 */
+        .comment-section {
+            max-height: 200px;
+            overflow-y: auto;
+            border-top: 1px solid #eee;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        .comment-item { margin-bottom: 8px; font-size: 0.9em; }
+        .comment-item strong { color: #d35400; }
+        .add-comment-btn {
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .add-comment-btn:hover { background-color: #34495e; }
+    </style>
+</head>
+<body>
+
+<div class="header-box">
+    <h2 style="margin:0; color:#2c3e50;">🌍 地殼留言板</h2>
+    <p style="margin:5px 0 0; font-size: 0.9em; color:#7f8c8d;">點擊固定地點，查看並留下你的地質評論！</p>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+<script>
+    // --- 1. Firebase 配置 ---
+    const firebaseConfig = {
+  apiKey: "AIzaSyCkEXDJ_vqlzq3fJbpQkfOPO1v463zPO58",
+  authDomain: "platemap2-b7c66.firebaseapp.com",
+  projectId: "platemap2-b7c66",
+  storageBucket: "platemap2-b7c66.firebasestorage.app",
+  messagingSenderId: "370123244588",
+  appId: "1:370123244588:web:e19aa2515152fd3169fd89"
+};
+
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref('platemap_comments');
+
+    // --- 2. 初始化地圖 (使用 CRS.Simple 處理自定義圖片) ---
+    var map = L.map('map', {
+        crs: L.CRS.Simple, // 重要：切換到平面坐標系
+        minZoom: -1,
+        maxZoom: 2
+    });
+
+    // --- 3. 設置自定義圖片底圖 ---
+    // 圖片尺寸 (這對 CRS.Simple 非常重要，我設定一個初始坐標系)
+    var imgW = 1000, imgH = 600;
+    var bounds = [[0, 0], [imgH, imgW]]; // [ [南, 西], [北, 東] ]
+    
+    // 圖片檔案路徑 (請確保檔案在同一個資料夾，並命名為 platemap_background.png)
+    var imageUrl = 'platemap_background.png'; 
+    L.imageOverlay(imageUrl, bounds).addTo(map);
+    
+    // 將地圖中心對準圖片
+    map.fitBounds(bounds);
+
+    // --- 4. 座標轉換 (專業編程) ---
+    // 因為圖片是CRS.Simple，地理緯經度要轉換為圖片內座標。
+    // 這需要一個轉換函式。我幫你計算好轉換公式。
+    function geoToPixel(lat, lon) {
+        // 簡單映射公式：W 轉 0, E 轉 imgW; S 轉 0, N 轉 imgH
+        // 這需要對應圖片邊界，我設定大概的範圍
+        var pixelX = (lon + 180) * (imgW / 360);
+        var pixelY = (lat + 90) * (imgH / 180);
+        return [pixelY, pixelX]; // Leaflet 使用 [Y, X]
+    }
+
+    // --- 5. 設置 6 個地點 (已轉換座標) ---
+    const locations = [
+        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂形成的巨大斷裂帶。' },
+        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '位於美國加州，屬於平移斷層。' },
+        { id: 'Andes', name: '安第斯山脈', lat: -32.65, lon: -70.01, desc: '世界上最長的陸上山脈（近阿空加瓜山）。' },
+        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊上的火山島。' },
+        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印尼人口密集的島嶼，火山活動頻繁。' },
+        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '世界最高山脈（座標近聖母峰）。' }
+    ];
+
+    // 為每個地點建立標記和彈窗
+    locations.forEach(loc => {
+        var pixelCoord = geoToPixel(loc.lat, loc.lon);
+        var marker = L.marker(pixelCoord).addTo(map);
+        
+        // 設定彈窗內容架構
+        var popupContent = `
+            <div class="custom-popup" style="width:250px;">
+                <strong style="color:#d35400; font-size:1.1em;">📍 ${loc.name}</strong><br>
+                <small style="color:gray;">(${loc.lat.toFixed(2)}, ${loc.lon.toFixed(2)})</small><br>
+                <b style="margin-top:5px; display:block;">地質描述：</b>${loc.desc}<br>
+                
+                <div class="comment-section" id="comment-section-${loc.id}">
+                    <b>學生評論：</b><br>
+                    <div class="comment-list" id="comment-list-${loc.id}">
+                        </div>
+                </div>
+                
+                <button class="add-comment-btn" onclick="addComment('${loc.id}')">我要評論</button>
+            </div>
+        `;
+        marker.bindPopup(popupContent);
+
+        // --- 6. 監聽 Firebase 數據，載入該點評論 ---
+        db.child(loc.id).on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            const commentList = document.getElementById(`comment-list-${loc.id}`);
+            
+            if (commentList) {
+                const commentItem = document.createElement('div');
+                commentItem.className = 'comment-item';
+                commentItem.innerHTML = `
+                    <strong>👤 ${data.user}:</strong> ${data.text}
+                    <div style="font-size:0.8em; color:#bdc3c7;">${data.time}</div>
+                `;
+                commentList.appendChild(commentItem);
+                
+                // 自動滾動到底部
+                var commentSection = document.getElementById(`comment-section-${loc.id}`);
+                commentSection.scrollTop = commentSection.scrollHeight;
+            }
+        });
+    });
+
+    // --- 7. 新增評論功能 (處理按鈕點擊) ---
+    window.addComment = function(locationId) {
+        var user = prompt("請輸入你的名字：");
+        if (!user) return;
+        
+        var text = prompt("請留下你對這裡的觀察或問題：");
+        if (!text) return;
+
+        // 將評論存入該地點的路徑下
+        db.child(locationId).push({
+            user: user,
+            text: text,
+            time: new Date().toLocaleString()
+        });
+    };
+</script>
+
+</body>
+</html>
