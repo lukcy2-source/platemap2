@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球板塊留言板 - 精密校準版</title>
+    <title>全球板塊留言板 - 精確校正版</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -50,7 +50,6 @@
             cursor: pointer;
             font-weight: bold;
             margin-top: 8px;
-            transition: 0.3s;
         }
         .add-btn:hover { background: #85ce61; }
     </style>
@@ -58,8 +57,8 @@
 <body>
 
 <div class="header-box">
-    <h2 style="margin:0; color:#303133;">🌍 全球板塊地質互動地圖</h2>
-    <span style="font-size: 12px; color:#909399;">點擊座標點進行評論，數據將即時同步全班</span>
+    <h2 style="margin:0; color:#303133;">🌍 板塊構造互動地圖 (精密校準)</h2>
+    <span style="font-size: 12px; color:#909399;">本初子午線已校準於 255px 位置</span>
 </div>
 
 <div id="map"></div>
@@ -69,7 +68,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
 <script>
-    // --- 1. Firebase 配置 (已校正為新加坡地區 URL) ---
+    // --- 1. Firebase 配置 ---
     const firebaseConfig = {
         apiKey: "AIzaSyDD3RepU3OyEzhu9OVyEJnXQkqXs9q3hsQ",
         authDomain: "platemap2-b7c66.firebaseapp.com",
@@ -77,15 +76,17 @@
         projectId: "platemap2-b7c66",
         storageBucket: "platemap2-b7c66.appspot.com",
         messagingSenderId: "618061351875",
-        appId: "1:618061351875:web:cf2ee4e4a19ccd3b7a0b76"
+        appId: "1:618061351875:web:cf2ee7e4a19ccd3b7a0b76"
     };
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref('class_activity');
 
-    // --- 2. 初始化自定義地圖底圖 ---
+    // --- 2. 初始化地圖與底圖名稱 ---
     const imgW = 1794;
     const imgH = 1002;
+    const imageUrl = 'imageUrl'; // 確保檔案名正確
+
     const map = L.map('map', {
         crs: L.CRS.Simple,
         minZoom: -1,
@@ -94,32 +95,32 @@
     });
 
     const bounds = [[0, 0], [imgH, imgW]];
-    const imageUrl = 'imageUrl'; 
     L.imageOverlay(imageUrl, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // --- 3. 精密計算過程 (224.25 px / 45°) ---
+    // --- 3. 核心校準公式 (關鍵修改點) ---
     function geoToPixel(lat, lon) {
-        // 經度計算：每 45 度為 224.25 px，總寬 1794 (45 * 8 = 360, 224.25 * 8 = 1794)
-        let x = (lon + 180) * (224.25 / 45);
+        // 經度計算：以 255 像素為 0 度起點，每度位移 (224.25 / 45) 像素
+        let x = 255 + (lon * (224.25 / 45));
         
-        // 緯度計算：總高 1002 對應 180 度 (-90 到 90)
-        let y = (lat + 90) * (1002 / 180);
+        // 緯度計算：假設赤道 (0度) 在圖片高度中央 (501px)
+        // 若赤道位置有偏，可將 501 進行微調
+        let y = 501 + (lat * (1002 / 180));
         
         return [y, x];
     }
 
-    // --- 4. 教學考察地點數據 ---
+    // --- 4. 地點數據 ---
     const locations = [
-        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂造成的巨大斷裂帶，未來可能形成新海洋。' },
+        { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂形成的巨大斷裂帶。' },
         { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '平移邊界典型案例，太平洋板塊與北美洲板塊相互滑動。' },
         { id: 'Andes', name: '安第斯山脈', lat: -32.65, lon: -70.01, desc: '納斯卡板塊隱沒至南美板塊下方形成的褶皺山脈。' },
-        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊，是少見在地表可見的張裂邊界。' },
-        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印澳板塊與歐亞板塊聚合，火山活動極其頻繁。' },
-        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '兩個大陸板塊相撞，使地殼劇烈抬升成為世界屋脊。' }
+        { id: 'Iceland', name: '冰島', lat: 64.96, lon: -19.02, desc: '位於大西洋中洋脊上的火山島。' },
+        { id: 'Java', name: '爪哇島', lat: -7.49, lon: 110.00, desc: '印澳板塊與歐亞板塊聚合。' },
+        { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '兩個大陸板塊相撞擠壓形成。' }
     ];
 
-    // --- 5. 生成標記與留言載入 ---
+    // --- 5. 生成標記 ---
     locations.forEach(loc => {
         const pixelPos = geoToPixel(loc.lat, loc.lon);
         const marker = L.marker(pixelPos).addTo(map);
@@ -127,26 +128,20 @@
         const content = document.createElement('div');
         content.style.minWidth = "240px";
         content.innerHTML = `
-            <div style="border-bottom: 2px solid #409eff; padding-bottom:5px; margin-bottom:8px;">
-                <strong style="font-size:16px;">${loc.name}</strong>
-            </div>
-            <p style="font-size:13px; color:#606266; line-height:1.4;">${loc.desc}</p>
+            <strong style="font-size:16px; color:#409eff;">${loc.name}</strong><br>
+            <p style="font-size:13px; color:#606266;">${loc.desc}</p>
             <div class="comment-section" id="box-${loc.id}">
                 <div id="list-${loc.id}"><small>載入中...</small></div>
             </div>
-            <button class="add-btn" onclick="postComment('${loc.id}')">我也要留言</button>
+            <button class="add-btn" onclick="postComment('${loc.id}')">✍️ 發表評論</button>
         `;
-
         marker.bindPopup(content);
 
-        // 監聽 Firebase 分支數據
         db.child(loc.id).on('value', (snapshot) => {
             const listContainer = document.getElementById(`list-${loc.id}`);
             if (!listContainer) return;
-            
             listContainer.innerHTML = "";
             const data = snapshot.val();
-            
             if (data) {
                 Object.values(data).forEach(item => {
                     const div = document.createElement('div');
@@ -154,20 +149,17 @@
                     div.innerHTML = `<strong>${item.user}</strong>: ${item.msg}<br><small style="color:#C0C4CC;">${item.time}</small>`;
                     listContainer.appendChild(div);
                 });
-                // 自動滾動到最新留言
-                const box = document.getElementById(`box-${loc.id}`);
-                box.scrollTop = box.scrollHeight;
             } else {
-                listContainer.innerHTML = "<center><small style='color:#999;'>暫無評論，歡迎首位發言</small></center>";
+                listContainer.innerHTML = "<center><small>暫無評論</small></center>";
             }
         });
     });
 
-    // --- 6. 提交評論功能 ---
+    // --- 6. 互動功能 ---
     window.postComment = function(locId) {
         const name = prompt("請輸入你的姓名：");
         if (!name) return;
-        const comment = prompt("請輸入你的觀察或地質特徵描述：");
+        const comment = prompt("請輸入評論：");
         if (!comment) return;
 
         db.child(locId).push({
@@ -176,7 +168,6 @@
             time: new Date().toLocaleString()
         });
     };
-
 </script>
 </body>
 </html>
