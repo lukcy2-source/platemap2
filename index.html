@@ -84,30 +84,28 @@
         maxZoom: 2
     });
 
-    // --- 3. 設置自定義圖片底圖 ---
-    // 圖片尺寸 (這對 CRS.Simple 非常重要，我設定一個初始坐標系)
-    var imgW = 1000, imgH = 600;
-    var bounds = [[0, 0], [imgH, imgW]]; // [ [南, 西], [北, 東] ]
+    //// --- 3. 設置自定義圖片底圖 ---
+    var imgW = 1794; 
+    var imgH = 1002;
+    var bounds = [[0, 0], [imgH, imgW]]; 
     
-    // 圖片檔案路徑 (請確保檔案在同一個資料夾，並命名為 platemap_background.png)
-    var imageUrl = 'imageUrl'; 
+    var imageUrl = 'platemap_background.png'; 
     L.imageOverlay(imageUrl, bounds).addTo(map);
-    
-    // 將地圖中心對準圖片
     map.fitBounds(bounds);
 
-    // --- 4. 座標轉換 (專業編程) ---
-    // 因為圖片是CRS.Simple，地理緯經度要轉換為圖片內座標。
-    // 這需要一個轉換函式。我幫你計算好轉換公式。
+    // --- 4. 座標轉換 (精密校準版) ---
     function geoToPixel(lat, lon) {
-        // 簡單映射公式：W 轉 0, E 轉 imgW; S 轉 0, N 轉 imgH
-        // 這需要對應圖片邊界，我設定大概的範圍
-        var pixelX = (lon + 180) * (imgW / 360);
-        var pixelY = (lat + 90) * (imgH / 180);
-        return [pixelY, pixelX]; // Leaflet 使用 [Y, X]
+        // 經度 lon: -180(西) -> 0, 180(東) -> 1794
+        var x = (lon + 180) * (imgW / 360);
+        
+        // 緯度 lat: -90(南) -> 0, 90(北) -> 1002
+        // 注意：在圖片坐標系中，0 是底部，1002 是頂部
+        var y = (lat + 90) * (imgH / 180);
+        
+        return [y, x]; 
     }
 
-    // --- 5. 設置 6 個地點 (已轉換座標) ---
+    // --- 5. 設置 6 個地點 (使用你提供的精確經緯度) ---
     const locations = [
         { id: 'EastAfrica', name: '東非大裂谷', lat: -0.20, lon: 36.20, desc: '板塊張裂形成的巨大斷裂帶。' },
         { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, desc: '位於美國加州，屬於平移斷層。' },
@@ -117,7 +115,12 @@
         { id: 'Himalayas', name: '喜馬拉雅山脈', lat: 27.98, lon: 86.92, desc: '世界最高山脈（座標近聖母峰）。' }
     ];
 
-    // 為每個地點建立標記和彈窗
+    // 繪製標記
+    locations.forEach(loc => {
+        var pixelCoord = geoToPixel(loc.lat, loc.lon);
+        var marker = L.marker(pixelCoord).addTo(map);
+        
+        // ... (後續的彈窗與 Firebase 評論代碼保持不變) ...    // 為每個地點建立標記和彈窗
     locations.forEach(loc => {
         var pixelCoord = geoToPixel(loc.lat, loc.lon);
         var marker = L.marker(pixelCoord).addTo(map);
