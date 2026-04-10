@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球板塊留言板 - 手動定位版</title>
+    <title>全球板塊留言板 - 管理增強版</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -11,7 +11,6 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background-color: #f0f2f5; }
         #map { height: 100vh; width: 100%; background: #ffffff; }
         
-        /* 頁首標題樣式 */
         .header-box {
             position: absolute;
             top: 20px;
@@ -26,7 +25,6 @@
             border: 1px solid #dcdfe6;
         }
 
-        /* 評論區樣式 */
         .comment-section {
             max-height: 200px;
             overflow-y: auto;
@@ -40,8 +38,25 @@
             padding-bottom: 8px; 
             border-bottom: 1px solid #eee;
             font-size: 13px;
+            position: relative; /* 為了放置刪除按鈕 */
         }
         .comment-item strong { color: #409eff; }
+        
+        .delete-btn {
+            position: absolute;
+            right: 0;
+            top: 0;
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 10px;
+            cursor: pointer;
+            opacity: 0.6;
+        }
+        .delete-btn:hover { opacity: 1; }
+
         .add-btn {
             background: #67c23a;
             color: white;
@@ -58,7 +73,7 @@
 <body>
 
 <div class="header-box">
-    <h2 style="margin:0; color:#303133;">🌍 板塊構造互動地圖 (手動校準版)</h2>
+    <h2 style="margin:0; color:#303133;">🌍 板塊構造互動地圖 (管理版)</h2>
     <span style="font-size: 12px; color:#f56c6c;">提示：按 F12 打開 Console，點擊地圖即可獲取座標</span>
 </div>
 
@@ -81,12 +96,14 @@
     };
     
     firebase.initializeApp(firebaseConfig);
+    // 使用 .ref('class_activity') 作為根目錄，這能確保數據被永久儲存在這個節點下
     const db = firebase.database().ref('class_activity');
 
     // --- 【2. 底圖設定】 ---
     const imgW = 1794;
     const imgH = 1002;
-    const imageUrl = 'imageUrl'; 
+    // 提醒：請確保你的圖片檔案夾中有對應的圖檔，或將此處改回 'platemap_background.png'
+    const imageUrl = 'platemap_background.png'; 
 
     const map = L.map('map', {
         crs: L.CRS.Simple,
@@ -99,19 +116,18 @@
     L.imageOverlay(imageUrl, bounds).addTo(map);
     map.fitBounds(bounds);
 
-    // --- 【3. 地點數據：請在此手動更改座標 [Y, X] 】 ---
+    // --- 【3. 地點數據：保留你修改後的座標與描述】 ---
     const locations = [
-        { id: 'EastAfrica', name: '東非大裂谷', pos: [495, 403], desc: '板塊張裂形成的巨大斷裂帶。' },
-        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', lat: 35.10, lon: -119.30, pos: [680, 1353], desc: '平移邊界典型案例。' },
-        { id: 'Andes', name: '安第斯山脈', pos: [328, 1595], desc: '聚合型邊界形成的褶皺山脈。' },
-        { id: 'Iceland', name: '冰島', pos: [891, 211], desc: '位於大西洋中洋脊上的火山島。' },
-        { id: 'Java', name: '爪哇島', pos: [390, 745], desc: '印澳板塊與歐亞板塊聚合。' },
-        { id: 'Himalayas', name: '喜馬拉雅山脈', pos: [640, 620], desc: '兩個大陸板塊相撞擠壓形成。' }
+        { id: 'EastAfrica', name: '東非大裂谷', pos: [495, 403], desc: 'A.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' },
+        { id: 'SanAndreas', name: '聖安德烈雅斯斷層', pos: [680, 1353], desc: 'B.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' },
+        { id: 'Andes', name: '安第斯山脈', pos: [328, 1595], desc: 'C.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' },
+        { id: 'Iceland', name: '冰島', pos: [891, 211], desc: 'D.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' },
+        { id: 'Java', name: '爪哇島', pos: [390, 745], desc: 'E.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' },
+        { id: 'Himalayas', name: '喜馬拉雅山脈', pos: [640, 620], desc: 'F.這個地點形成甚麼地貌、牽涉甚麼內應力和內部作用。' }
     ];
 
     // --- 【4. 標記生成與評論邏輯】 ---
     locations.forEach(loc => {
-        // 直接使用手動設定的 pos
         const marker = L.marker(loc.pos).addTo(map);
 
         const content = document.createElement('div');
@@ -126,16 +142,23 @@
         `;
         marker.bindPopup(content);
 
+        // 實時監聽：一旦 Firebase 有變動，所有人的頁面都會自動刷新留言
         db.child(loc.id).on('value', (snapshot) => {
             const listContainer = document.getElementById(`list-${loc.id}`);
             if (!listContainer) return;
             listContainer.innerHTML = "";
+            
             const data = snapshot.val();
             if (data) {
-                Object.values(data).forEach(item => {
+                // Object.entries 可以同時取得 Key (用於刪除) 和 Value (內容)
+                Object.entries(data).forEach(([key, item]) => {
                     const div = document.createElement('div');
                     div.className = 'comment-item';
-                    div.innerHTML = `<strong>${item.user}</strong>: ${item.msg}<br><small style="color:#C0C4CC;">${item.time}</small>`;
+                    div.innerHTML = `
+                        <strong>${item.user}</strong>: ${item.msg}<br>
+                        <small style="color:#C0C4CC;">${item.time}</small>
+                        <button class="delete-btn" onclick="deleteComment('${loc.id}', '${key}')">刪除</button>
+                    `;
                     listContainer.appendChild(div);
                 });
             } else {
@@ -144,18 +167,35 @@
         });
     });
 
-    // --- 【5. 評論功能】 ---
+    // --- 【5. 評論與刪除功能】 ---
+    
+    // 發表評論
     window.postComment = function(locId) {
         const name = prompt("請輸入你的姓名：");
         if (!name) return;
         const comment = prompt("請輸入評論：");
         if (!comment) return;
-        db.child(locId).push({ user: name, msg: comment, time: new Date().toLocaleString() });
+        
+        // .push() 會在 Firebase 產生一個帶有唯一 ID 的新紀錄
+        db.child(locId).push({ 
+            user: name, 
+            msg: comment, 
+            time: new Date().toLocaleString() 
+        });
     };
 
-    // --- 【6. 座標拾取器：手動定位必備工具】 ---
+    // 刪除評論
+    window.deleteComment = function(locId, commentKey) {
+        if (confirm("確定要刪除這條評論嗎？")) {
+            // 使用 .remove() 刪除指定路徑下的數據
+            db.child(locId).child(commentKey).remove()
+                .then(() => console.log("刪除成功"))
+                .catch((error) => alert("刪除失敗：" + error));
+        }
+    };
+
+    // --- 【6. 座標拾取器】 ---
     map.on('click', function(e) {
-        // 在網頁控制台印出 Y 和 X
         console.log("當前點擊座標 [Y, X]: [" + e.latlng.lat.toFixed(1) + ", " + e.latlng.lng.toFixed(1) + "]");
     });
 </script>
